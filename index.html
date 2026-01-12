@@ -1,0 +1,700 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>محكمة مومو ⚖️</title>
+    <!-- خط القاهرة -->
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap" rel="stylesheet">
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- مكتبة الأيقونات -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        cairo: ['Cairo', 'sans-serif'],
+                    },
+                    colors: {
+                        momo: {
+                            bg: '#1A202C',      // كحلي غامق
+                            text: '#F7FAFC',    // أبيض مائل للرمادي
+                            judge: '#D69E2E',   // ذهبي
+                            pros: '#E53E3E',    // أحمر فاتح
+                            def: '#3182CE',     // أزرق سماوي
+                            jury: '#805AD5',    // بنفسجي
+                        }
+                    },
+                    animation: {
+                        'gavel': 'pound 0.4s ease-in-out',
+                        'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+                    },
+                    keyframes: {
+                        pound: {
+                            '0%, 100%': { transform: 'rotate(0deg)' },
+                            '50%': { transform: 'rotate(-45deg)' },
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body { font-family: 'Cairo', sans-serif; background-color: #1A202C; color: #F7FAFC; }
+        .glass-panel {
+            background: rgba(45, 55, 72, 0.7);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        .scroll-custom::-webkit-scrollbar { width: 8px; }
+        .scroll-custom::-webkit-scrollbar-track { background: #2D3748; }
+        .scroll-custom::-webkit-scrollbar-thumb { background: #4A5568; border-radius: 4px; }
+        .scroll-custom::-webkit-scrollbar-thumb:hover { background: #718096; }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col items-center justify-center bg-[#1A202C] overflow-x-hidden selection:bg-yellow-500 selection:text-black">
+
+    <!-- مؤشر حالة الاتصال -->
+    <div id="connection-status" class="fixed top-0 left-0 w-full text-center text-xs py-1 bg-yellow-600 text-black font-bold z-50 hidden">
+        جاري الاتصال بالسيرفر...
+    </div>
+
+    <!-- نافذة الأخطاء (للمساعدة في التشخيص) -->
+    <div id="error-toast" class="fixed bottom-4 left-4 max-w-sm bg-red-600 text-white p-4 rounded-lg shadow-2xl hidden z-50 text-sm">
+        <strong class="block mb-1">خطأ في النظام:</strong>
+        <span id="error-msg"></span>
+        <button onclick="this.parentElement.style.display='none'" class="absolute top-2 left-2 text-white/50 hover:text-white">✕</button>
+    </div>
+
+    <!-- شاشة الدخول -->
+    <div id="login-screen" class="w-full max-w-md p-6 relative z-10 animate-fade-in">
+        <div class="glass-panel p-8 rounded-2xl shadow-2xl text-center border-t-4 border-momo-judge">
+            <div class="flex justify-center mb-4">
+                <i data-lucide="scale" class="w-16 h-16 text-momo-judge"></i>
+            </div>
+            <h1 class="text-4xl font-black mb-2 text-momo-judge">محكمة مومو</h1>
+            <p class="text-gray-400 mb-8 text-sm tracking-wide">العدالة التفاعلية | بث مباشر</p>
+            
+            <div class="relative">
+                <div class="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
+                    <i data-lucide="key" class="w-5 h-5 text-gray-500"></i>
+                </div>
+                <input type="password" id="access-code" 
+                    class="w-full p-4 pr-10 bg-gray-800 text-white border border-gray-600 rounded-xl focus:outline-none focus:border-momo-judge focus:ring-2 focus:ring-momo-judge/50 transition-all placeholder-gray-500"
+                    placeholder="أدخل رمز الدخول...">
+            </div>
+            
+            <button onclick="checkCode()" class="mt-6 w-full bg-gradient-to-r from-yellow-600 to-yellow-500 hover:from-yellow-500 hover:to-yellow-400 text-gray-900 font-bold py-4 rounded-xl shadow-lg transform hover:-translate-y-1 transition-all duration-200 flex items-center justify-center gap-2">
+                <span>دخول القاعة</span>
+                <i data-lucide="door-open" class="w-5 h-5"></i>
+            </button>
+            
+            <div class="mt-6 text-xs text-gray-500 space-y-1">
+                <p>رموز تجريبية: ADMIN99, JUDGE1, PROS1, DEFENSE1, JURY1, GUEST</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- لوحة التحكم (الأدمن) -->
+    <div id="admin-view" class="hidden w-full max-w-6xl p-4">
+        <div class="flex justify-between items-center mb-6 border-b border-gray-700 pb-4">
+            <h2 class="text-3xl font-bold text-red-500 flex items-center gap-2">
+                <i data-lucide="settings" class="w-8 h-8"></i>
+                غرفة التحكم
+            </h2>
+            <button onclick="location.reload()" class="bg-gray-700 px-4 py-2 rounded hover:bg-gray-600 text-sm">خروج</button>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <!-- تفاصيل القضية -->
+            <div class="bg-gray-800 p-6 rounded-xl border border-gray-700">
+                <h3 class="text-lg font-bold mb-4 text-gray-300">📝 البيانات الأساسية</h3>
+                <div class="space-y-4">
+                    <input id="inp-case-title" placeholder="عنوان القضية" class="w-full p-3 bg-gray-900 rounded border border-gray-700 focus:border-red-500 outline-none">
+                    <textarea id="inp-case-desc" placeholder="حيثيات القضية (القصة الكاملة)" class="w-full p-3 bg-gray-900 rounded h-32 border border-gray-700 focus:border-red-500 outline-none resize-none"></textarea>
+                    
+                    <div class="grid grid-cols-2 gap-4">
+                        <input id="inp-victim" placeholder="اسم المجني عليه" class="p-3 bg-gray-900 rounded border border-gray-700 focus:border-red-500 outline-none">
+                        <input id="inp-accused" placeholder="اسم المتهم" class="p-3 bg-gray-900 rounded border border-gray-700 focus:border-red-500 outline-none">
+                    </div>
+                </div>
+            </div>
+
+            <!-- أطراف القضية -->
+            <div class="bg-gray-800 p-6 rounded-xl border border-gray-700">
+                <h3 class="text-lg font-bold mb-4 text-gray-300">👥 أطراف النزاع</h3>
+                <div class="space-y-4">
+                    <div class="flex items-center gap-2">
+                        <span class="w-8 h-8 rounded bg-momo-judge flex items-center justify-center text-black font-bold">Q</span>
+                        <input id="inp-judge" placeholder="اسم القاضي" class="flex-1 p-3 bg-gray-900 rounded border border-gray-700 focus:border-momo-judge outline-none">
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="w-8 h-8 rounded bg-momo-pros flex items-center justify-center text-white font-bold">P</span>
+                        <input id="inp-pros-lawyer" placeholder="محامي الادعاء" class="flex-1 p-3 bg-gray-900 rounded border border-gray-700 focus:border-momo-pros outline-none">
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="w-8 h-8 rounded bg-momo-def flex items-center justify-center text-white font-bold">D</span>
+                        <input id="inp-def-lawyer" placeholder="محامي المتهم" class="flex-1 p-3 bg-gray-900 rounded border border-gray-700 focus:border-momo-def outline-none">
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="w-8 h-8 rounded bg-momo-jury flex items-center justify-center text-white font-bold">J</span>
+                        <textarea id="inp-jurors" placeholder="أسماء المحلفين (كل اسم في سطر أو مفصولة بفاصلة)" class="flex-1 p-3 bg-gray-900 rounded border border-gray-700 focus:border-momo-jury outline-none h-20 resize-none"></textarea>
+                    </div>
+                </div>
+            </div>
+
+            <!-- إدارة الشهود -->
+            <div class="lg:col-span-2 bg-gray-800 p-6 rounded-xl border border-gray-700">
+                <h3 class="text-lg font-bold mb-4 text-gray-300 flex items-center gap-2">
+                    <i data-lucide="eye" class="text-cyan-400"></i> إدارة الشهود والسيناريوهات
+                </h3>
+                <div id="witness-admin-container" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <!-- سيتم توليد حقول الإدخال هنا بواسطة JS -->
+                </div>
+            </div>
+
+            <!-- الأدلة -->
+            <div class="lg:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div class="bg-red-900/10 p-4 rounded-xl border border-red-900/50">
+                    <h3 class="text-red-400 font-bold mb-2">🔥 أدلة الإدانة</h3>
+                    <textarea id="inp-ev-guilt" placeholder="اكتب الأدلة هنا..." class="w-full p-3 bg-gray-900 rounded h-32 border border-red-900/50 focus:border-red-500 outline-none resize-none"></textarea>
+                </div>
+                <div class="bg-blue-900/10 p-4 rounded-xl border border-blue-900/50">
+                    <h3 class="text-blue-400 font-bold mb-2">🛡️ أدلة البراءة</h3>
+                    <textarea id="inp-ev-innocence" placeholder="اكتب الأدلة هنا..." class="w-full p-3 bg-gray-900 rounded h-32 border border-blue-900/50 focus:border-blue-500 outline-none resize-none"></textarea>
+                </div>
+            </div>
+        </div>
+
+        <div class="mt-8 flex gap-4">
+            <button id="save-btn" class="flex-1 bg-green-600 hover:bg-green-700 text-white py-4 rounded-xl font-bold shadow-lg transition flex items-center justify-center gap-2">
+                <i data-lucide="save"></i> حفظ ونشر القضية
+            </button>
+            <button id="reset-votes-btn" class="bg-gray-700 hover:bg-red-700 text-white px-8 rounded-xl font-bold transition">
+                تصفير التصويت
+            </button>
+        </div>
+    </div>
+
+    <!-- شاشة المحكمة (للمستخدمين) -->
+    <div id="court-view" class="hidden w-full max-w-7xl p-4 md:p-6 mb-20">
+        <!-- الهيدر -->
+        <header class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
+            <div>
+                <div class="flex items-center gap-3 mb-1">
+                    <span id="role-badge" class="px-3 py-1 rounded-full text-xs font-bold bg-gray-700 border border-gray-600">زائر</span>
+                    <span class="flex h-3 w-3 relative">
+                        <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                        <span class="relative inline-flex rounded-full h-3 w-3 bg-red-500"></span>
+                    </span>
+                    <span class="text-xs text-red-400 font-bold">بث مباشر</span>
+                </div>
+                <h1 id="display-case-title" class="text-2xl md:text-4xl font-black text-momo-judge leading-tight">جاري تحميل القضية...</h1>
+            </div>
+            <button onclick="location.reload()" class="text-gray-500 hover:text-white transition">
+                <i data-lucide="log-out"></i>
+            </button>
+        </header>
+
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            
+            <!-- العمود الجانبي: الأشخاص -->
+            <div class="lg:col-span-3 space-y-4 order-2 lg:order-1">
+                <!-- القاضي -->
+                <div class="glass-panel p-4 rounded-xl border-r-4 border-momo-judge relative overflow-hidden group">
+                    <div class="absolute -right-4 -top-4 text-momo-judge opacity-10 group-hover:opacity-20 transition">
+                        <i data-lucide="gavel" class="w-24 h-24"></i>
+                    </div>
+                    <h3 class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">القاضي</h3>
+                    <p id="display-judge" class="text-xl font-bold text-momo-judge truncate">...</p>
+                </div>
+
+                <!-- المتهم والمجني عليه -->
+                <div class="grid grid-cols-2 gap-2">
+                    <div class="bg-gray-800 p-3 rounded-lg border border-gray-700">
+                        <h3 class="text-xs text-gray-500 mb-1">المتهم 🛑</h3>
+                        <p id="display-accused" class="font-bold text-white truncate">...</p>
+                        <div class="mt-2 text-xs text-gray-400">
+                            <span class="block">الدفاع:</span>
+                            <span id="display-def-lawyer" class="text-momo-def">...</span>
+                        </div>
+                    </div>
+                    <div class="bg-gray-800 p-3 rounded-lg border border-gray-700">
+                        <h3 class="text-xs text-gray-500 mb-1">المجني عليه 🤕</h3>
+                        <p id="display-victim" class="font-bold text-white truncate">...</p>
+                        <div class="mt-2 text-xs text-gray-400">
+                            <span class="block">الادعاء:</span>
+                            <span id="display-pros-lawyer" class="text-momo-pros">...</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- المحلفين (جديد) -->
+                <div class="bg-gray-800 p-4 rounded-xl border-l-4 border-momo-jury">
+                    <h3 class="text-xs font-bold text-gray-400 uppercase mb-2 flex items-center gap-2">
+                        <i data-lucide="users" class="w-3 h-3"></i> لجنة المحلفين
+                    </h3>
+                    <p id="display-jurors" class="text-sm text-gray-300 leading-relaxed whitespace-pre-line">...</p>
+                </div>
+            </div>
+
+            <!-- العمود الرئيسي: التفاصيل والأدلة والشهود -->
+            <div class="lg:col-span-6 space-y-6 order-1 lg:order-2">
+                <!-- القصة -->
+                <div class="glass-panel p-6 rounded-2xl shadow-xl">
+                    <h3 class="text-xl font-bold mb-4 text-gray-200 flex items-center gap-2">
+                        <i data-lucide="file-text" class="text-momo-judge"></i>
+                        حيثيات القضية
+                    </h3>
+                    <div class="bg-gray-900/50 p-4 rounded-xl border border-gray-700/50">
+                        <p id="display-case-desc" class="text-gray-300 leading-8 whitespace-pre-line text-lg font-light">...</p>
+                    </div>
+                </div>
+
+                <!-- قسم الشهود الجديد -->
+                <div class="glass-panel p-6 rounded-2xl shadow-xl border border-cyan-900/50">
+                    <h3 class="text-xl font-bold mb-4 text-cyan-400 flex items-center gap-2">
+                        <i data-lucide="eye" class="text-cyan-400"></i>
+                        أقوال الشهود
+                    </h3>
+                    <div id="display-witnesses-container" class="space-y-4">
+                        <p class="text-gray-400 text-center">لا يوجد شهود مسجلين حالياً.</p>
+                    </div>
+                </div>
+
+                <!-- أدلة الإدانة (يظهر للادعاء، القاضي، المحلفين) -->
+                <div id="section-evidence-guilt" class="hidden transform transition-all hover:scale-[1.01]">
+                    <div class="bg-gradient-to-l from-red-900/20 to-gray-800 p-6 rounded-xl border-r-4 border-momo-pros">
+                        <h3 class="text-lg font-bold mb-3 text-momo-pros flex items-center gap-2">
+                            <i data-lucide="flame"></i> أدلة الإدانة
+                        </h3>
+                        <p id="display-ev-guilt" class="text-gray-300 whitespace-pre-line leading-7">...</p>
+                    </div>
+                </div>
+
+                <!-- أدلة البراءة (يظهر للدفاع، القاضي، المحلفين) -->
+                <div id="section-evidence-innocence" class="hidden transform transition-all hover:scale-[1.01]">
+                    <div class="bg-gradient-to-l from-blue-900/20 to-gray-800 p-6 rounded-xl border-r-4 border-momo-def">
+                        <h3 class="text-lg font-bold mb-3 text-momo-def flex items-center gap-2">
+                            <i data-lucide="shield"></i> أدلة البراءة
+                        </h3>
+                        <p id="display-ev-innocence" class="text-gray-300 whitespace-pre-line leading-7">...</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- العمود الجانبي: التصويت -->
+            <div class="lg:col-span-3 order-3">
+                <div class="sticky top-6 space-y-6">
+                    <!-- لوحة المحلفين -->
+                    <div id="jury-section" class="hidden glass-panel p-6 rounded-2xl border border-momo-jury/30 shadow-[0_0_15px_rgba(128,90,213,0.1)]">
+                        <h3 class="font-bold text-momo-jury mb-4 text-center flex items-center justify-center gap-2">
+                            <i data-lucide="gavel"></i> قرار المحلفين
+                        </h3>
+                        <div class="grid grid-cols-2 gap-3">
+                            <button onclick="vote('innocent')" class="group relative overflow-hidden bg-green-900/40 hover:bg-green-600 border border-green-600 text-green-100 py-3 rounded-lg transition-all duration-300">
+                                <span class="relative z-10 font-bold">بريء</span>
+                                <div class="absolute inset-0 bg-green-500 transform scale-x-0 group-hover:scale-x-100 transition-transform origin-left opacity-20"></div>
+                            </button>
+                            <button onclick="vote('guilty')" class="group relative overflow-hidden bg-red-900/40 hover:bg-red-600 border border-red-600 text-red-100 py-3 rounded-lg transition-all duration-300">
+                                <span class="relative z-10 font-bold">مدان</span>
+                                <div class="absolute inset-0 bg-red-500 transform scale-x-0 group-hover:scale-x-100 transition-transform origin-left opacity-20"></div>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- نتائج التصويت الحية -->
+                    <div class="bg-gray-800 p-6 rounded-2xl shadow-lg text-center">
+                        <p class="text-xs text-gray-500 uppercase tracking-widest mb-4">نتائج التصويت الحية</p>
+                        
+                        <div class="flex items-end justify-between px-2 mb-2">
+                            <div class="text-center">
+                                <span id="count-innocent" class="block text-3xl font-black text-green-500">0</span>
+                                <span class="text-xs text-green-400">بريء</span>
+                            </div>
+                            <div class="text-gray-600 pb-2">VS</div>
+                            <div class="text-center">
+                                <span id="count-guilty" class="block text-3xl font-black text-red-500">0</span>
+                                <span class="text-xs text-red-400">مدان</span>
+                            </div>
+                        </div>
+
+                        <!-- شريط النسبة -->
+                        <div class="h-3 bg-gray-700 rounded-full overflow-hidden flex relative">
+                            <div id="bar-innocent" class="bg-green-500 h-full transition-all duration-1000" style="width: 50%"></div>
+                            <div id="bar-guilty" class="bg-red-500 h-full transition-all duration-1000" style="width: 50%"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Firebase SDK Logic (تم التحديث حسب الطلب) -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+        import { getAnalytics } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-analytics.js";
+        // استبدال Database بـ Firestore
+        import { getFirestore, doc, setDoc, getDoc, onSnapshot, updateDoc, increment } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+        import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+
+        // إعدادات قاعدة البيانات الجديدة (judge-31fea)
+        const firebaseConfig = {
+            apiKey: "AIzaSyBipomSPVclk5J9aFVmSJvGkk2P22YRkrU",
+            authDomain: "judge-31fea.firebaseapp.com",
+            projectId: "judge-31fea",
+            storageBucket: "judge-31fea.firebasestorage.app",
+            messagingSenderId: "820112341118",
+            appId: "1:820112341118:web:bdc569841ed81467e6802f",
+            measurementId: "G-QTW6XF41PF"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const analytics = getAnalytics(app); // إضافة التحليلات
+        const db = getFirestore(app);
+        const auth = getAuth(app);
+        
+        const CASE_DOC_ID = 'live-case-001'; // معرف المستند الوحيد للقضية
+
+        // --- إدارة الاتصال والمصادقة ---
+        const connectionStatus = document.getElementById('connection-status');
+        const errorToast = document.getElementById('error-toast');
+        const errorMsg = document.getElementById('error-msg');
+
+        function showError(msg) {
+            errorMsg.innerText = msg;
+            errorToast.style.display = 'block';
+            setTimeout(() => errorToast.style.display = 'none', 5000);
+        }
+        
+        // تسجيل الدخول
+        function ensureAuth() {
+            connectionStatus.style.display = 'block';
+            signInAnonymously(auth)
+                .then(() => {
+                    console.log("Firestore Auth: Connected to " + firebaseConfig.projectId);
+                    connectionStatus.style.display = 'none';
+                })
+                .catch((error) => {
+                    console.error("Auth Error:", error);
+                    connectionStatus.innerText = "فشل الاتصال: " + error.code;
+                    connectionStatus.classList.add('bg-red-600');
+                    showError("فشل في المصادقة مع السيرفر: " + error.message);
+                });
+        }
+        
+        ensureAuth();
+
+        // --- تهيئة الواجهة ---
+        lucide.createIcons();
+
+        // توليد خانات الشهود في الأدمن
+        const witnessContainer = document.getElementById('witness-admin-container');
+        for (let i = 1; i <= 10; i++) {
+            const div = document.createElement('div');
+            div.className = "bg-gray-900 p-3 rounded border border-gray-700";
+            div.innerHTML = `
+                <div class="text-xs text-cyan-500 mb-1 font-bold">الشاهد رقم ${i}</div>
+                <input id="w-name-${i}" placeholder="اسم الشاهد" class="w-full mb-2 p-2 bg-gray-800 rounded border border-gray-600 text-sm focus:border-cyan-500 outline-none">
+                <textarea id="w-scenario-${i}" placeholder="السيناريو / الأقوال" class="w-full p-2 bg-gray-800 rounded border border-gray-600 text-sm h-16 resize-none focus:border-cyan-500 outline-none"></textarea>
+            `;
+            witnessContainer.appendChild(div);
+        }
+
+        // --- الوظائف ---
+
+        window.checkCode = function() {
+            const codeInput = document.getElementById('access-code');
+            const code = codeInput.value.trim().toUpperCase();
+            
+            if(!code) {
+                codeInput.classList.add('ring-2', 'ring-red-500');
+                setTimeout(() => codeInput.classList.remove('ring-2', 'ring-red-500'), 1000);
+                return;
+            }
+
+            const loginScreen = document.getElementById('login-screen');
+            const adminView = document.getElementById('admin-view');
+            const courtView = document.getElementById('court-view');
+            
+            loginScreen.style.opacity = '0';
+            setTimeout(() => {
+                loginScreen.style.display = 'none';
+                
+                if (code === 'ADMIN99') {
+                    adminView.style.display = 'block';
+                    adminView.classList.add('animate-fade-in');
+                    loadAdminData();
+                } else {
+                    courtView.style.display = 'block';
+                    courtView.classList.add('animate-fade-in');
+                    setupRoleView(code);
+                }
+                lucide.createIcons();
+            }, 300);
+        };
+
+        // --- منطق الأدمن (Firestore) ---
+        
+        document.getElementById('save-btn').addEventListener('click', async () => {
+            if (!auth.currentUser) {
+                showError("غير متصل بالسيرفر. انتظر قليلاً...");
+                ensureAuth();
+                return;
+            }
+
+            const btn = document.getElementById('save-btn');
+            const originalText = btn.innerHTML;
+            btn.innerHTML = '<span class="animate-pulse">⏳ جاري الحفظ في السحابة...</span>';
+            btn.disabled = true;
+            
+            // مؤقت أمان
+            const timeoutId = setTimeout(() => {
+                btn.innerHTML = '⚠️ العملية تأخرت. تحقق من الكونسول';
+                btn.disabled = false;
+            }, 15000);
+
+            // جمع بيانات الشهود
+            const witnessesData = [];
+            for(let i=1; i<=10; i++) {
+                const name = document.getElementById(`w-name-${i}`).value;
+                const scenario = document.getElementById(`w-scenario-${i}`).value;
+                if(name.trim() || scenario.trim()) {
+                    witnessesData.push({ name, scenario });
+                }
+            }
+
+            const caseData = {
+                title: document.getElementById('inp-case-title').value,
+                description: document.getElementById('inp-case-desc').value,
+                judge: document.getElementById('inp-judge').value,
+                victim: document.getElementById('inp-victim').value,
+                accused: document.getElementById('inp-accused').value,
+                defLawyer: document.getElementById('inp-def-lawyer').value,
+                prosLawyer: document.getElementById('inp-pros-lawyer').value,
+                jurors: document.getElementById('inp-jurors').value,
+                witnessesData: witnessesData,
+                evGuilt: document.getElementById('inp-ev-guilt').value,
+                evInnocence: document.getElementById('inp-ev-innocence').value,
+            };
+
+            // استخدام setDoc مع merge: true لتحديث البيانات أو إنشائها
+            const caseRef = doc(db, 'court', CASE_DOC_ID);
+            
+            try {
+                await setDoc(caseRef, caseData, { merge: true });
+                clearTimeout(timeoutId);
+                btn.innerHTML = 'تم الحفظ بنجاح! ✅';
+                btn.classList.remove('bg-green-600');
+                btn.classList.add('bg-green-500');
+                setTimeout(() => {
+                    btn.innerHTML = originalText;
+                    btn.disabled = false;
+                    btn.classList.add('bg-green-600');
+                    btn.classList.remove('bg-green-500');
+                }, 2000);
+            } catch (err) {
+                clearTimeout(timeoutId);
+                console.error("Firestore Save Error:", err);
+                showError("فشل الحفظ: " + err.message);
+                btn.innerHTML = '❌ فشل';
+                setTimeout(() => { btn.innerHTML = originalText; btn.disabled = false; }, 2000);
+            }
+        });
+
+        document.getElementById('reset-votes-btn').addEventListener('click', async () => {
+            if(confirm('هل أنت متأكد من تصفير عداد الأصوات؟')) {
+                const caseRef = doc(db, 'court', CASE_DOC_ID);
+                try {
+                    await setDoc(caseRef, { votes: { innocent: 0, guilty: 0 } }, { merge: true });
+                    alert("تم تصفير الأصوات.");
+                } catch(err) {
+                    showError("حدث خطأ: " + err.message);
+                }
+            }
+        });
+
+        async function loadAdminData() {
+             const caseRef = doc(db, 'court', CASE_DOC_ID);
+             try {
+                 const docSnap = await getDoc(caseRef);
+                 if (docSnap.exists()) {
+                     const data = docSnap.data();
+                     document.getElementById('inp-case-title').value = data.title || '';
+                     document.getElementById('inp-case-desc').value = data.description || '';
+                     document.getElementById('inp-judge').value = data.judge || '';
+                     document.getElementById('inp-victim').value = data.victim || '';
+                     document.getElementById('inp-accused').value = data.accused || '';
+                     document.getElementById('inp-def-lawyer').value = data.defLawyer || '';
+                     document.getElementById('inp-pros-lawyer').value = data.prosLawyer || '';
+                     document.getElementById('inp-jurors').value = data.jurors || '';
+                     document.getElementById('inp-ev-guilt').value = data.evGuilt || '';
+                     document.getElementById('inp-ev-innocence').value = data.evInnocence || '';
+
+                     // تحميل الشهود
+                     if(data.witnessesData && Array.isArray(data.witnessesData)) {
+                         data.witnessesData.forEach((w, index) => {
+                             if(index < 10) {
+                                 document.getElementById(`w-name-${index+1}`).value = w.name || '';
+                                 document.getElementById(`w-scenario-${index+1}`).value = w.scenario || '';
+                             }
+                         });
+                     }
+                 }
+             } catch (err) {
+                 console.error("Error loading data:", err);
+                 showError("لم يتم العثور على بيانات سابقة أو لا توجد صلاحية");
+             }
+        }
+
+        // --- منطق المشاهد والأدوار (Firestore Listener) ---
+
+        function setupRoleView(code) {
+            const roleBadge = document.getElementById('role-badge');
+            const guiltSection = document.getElementById('section-evidence-guilt');
+            const innocenceSection = document.getElementById('section-evidence-innocence');
+            const jurySection = document.getElementById('jury-section');
+            
+            let roleName = "ضيف";
+            let roleClass = "bg-gray-600 text-gray-200";
+
+            if (code === 'JUDGE1') {
+                roleName = "القاضي ⚖️";
+                roleClass = "bg-momo-judge text-black";
+                guiltSection.style.display = 'block';
+                innocenceSection.style.display = 'block';
+            } 
+            else if (code === 'DEFENSE1') {
+                roleName = "الدفاع 🛡️";
+                roleClass = "bg-momo-def text-white";
+                innocenceSection.style.display = 'block';
+            }
+            else if (code === 'PROS1') {
+                roleName = "الادعاء 🔥";
+                roleClass = "bg-momo-pros text-white";
+                guiltSection.style.display = 'block';
+            }
+            else if (code === 'JURY1') {
+                roleName = "المحلفين 👥";
+                roleClass = "bg-momo-jury text-white";
+                jurySection.style.display = 'block';
+                guiltSection.style.display = 'block';
+                innocenceSection.style.display = 'block';
+            }
+            else if (code === 'WITNESS1') {
+                roleName = "شاهد 👁️";
+                roleClass = "bg-cyan-600 text-white";
+            }
+
+            roleBadge.textContent = roleName;
+            roleBadge.className = `px-3 py-1 rounded-full text-xs font-bold border border-white/20 shadow-lg ${roleClass}`;
+
+            // الاستماع للتحديثات الحية باستخدام onSnapshot
+            const caseRef = doc(db, 'court', CASE_DOC_ID);
+            
+            onSnapshot(caseRef, (docSnap) => {
+                if (docSnap.exists()) {
+                    const data = docSnap.data();
+
+                    updateText('display-case-title', data.title);
+                    updateText('display-case-desc', data.description);
+                    updateText('display-judge', data.judge);
+                    updateText('display-accused', data.accused);
+                    updateText('display-victim', data.victim);
+                    updateText('display-def-lawyer', data.defLawyer);
+                    updateText('display-pros-lawyer', data.prosLawyer);
+                    updateText('display-jurors', data.jurors);
+                    updateText('display-ev-guilt', data.evGuilt);
+                    updateText('display-ev-innocence', data.evInnocence);
+
+                    // عرض الشهود
+                    const witnessesContainer = document.getElementById('display-witnesses-container');
+                    
+                    if (data.witnessesData && Array.isArray(data.witnessesData) && data.witnessesData.length > 0) {
+                        // إعادة الرسم فقط إذا تغير عدد الشهود أو المحتوى بشكل جذري
+                        // للتبسيط نعيد الرسم دائماً هنا
+                        witnessesContainer.innerHTML = '';
+                        data.witnessesData.forEach(w => {
+                            const wDiv = document.createElement('div');
+                            wDiv.className = "bg-gray-800 p-4 rounded-xl border border-gray-700 hover:border-cyan-600 transition";
+                            wDiv.innerHTML = `
+                                <div class="flex items-center gap-2 mb-2">
+                                    <div class="bg-cyan-900/50 p-2 rounded-full">
+                                        <i data-lucide="user" class="w-4 h-4 text-cyan-400"></i>
+                                    </div>
+                                    <h4 class="font-bold text-white text-lg">${w.name || 'شاهد مجهول'}</h4>
+                                </div>
+                                <div class="bg-gray-900/50 p-3 rounded-lg border border-gray-700/30">
+                                    <p class="text-gray-300 text-sm leading-relaxed whitespace-pre-line">${w.scenario || 'لا يوجد أقوال مسجلة.'}</p>
+                                </div>
+                            `;
+                            witnessesContainer.appendChild(wDiv);
+                        });
+                        lucide.createIcons();
+                    } else {
+                        witnessesContainer.innerHTML = '<p class="text-gray-500 text-center py-4">لم يتم استدعاء شهود لهذه الجلسة.</p>';
+                    }
+
+                    // تحديث الأصوات
+                    const iVotes = data.votes?.innocent || 0;
+                    const gVotes = data.votes?.guilty || 0;
+                    const total = iVotes + gVotes;
+
+                    document.getElementById('count-innocent').innerText = iVotes;
+                    document.getElementById('count-guilty').innerText = gVotes;
+
+                    if (total > 0) {
+                        const iPercent = (iVotes / total) * 100;
+                        const gPercent = (gVotes / total) * 100;
+                        document.getElementById('bar-innocent').style.width = `${iPercent}%`;
+                        document.getElementById('bar-guilty').style.width = `${gPercent}%`;
+                    } else {
+                        document.getElementById('bar-innocent').style.width = `50%`;
+                        document.getElementById('bar-guilty').style.width = `50%`;
+                    }
+                }
+            }, (error) => {
+                console.error("Listen Error:", error);
+                // لا نظهر الخطأ للمستخدم العادي بشكل مزعج، فقط في الكونسول
+            });
+        }
+
+        function updateText(id, text) {
+            const el = document.getElementById(id);
+            if(el && el.innerText !== text && text !== undefined) {
+                el.innerText = text || '...';
+                el.classList.add('animate-pulse');
+                setTimeout(() => el.classList.remove('animate-pulse'), 500);
+            }
+        }
+
+        window.vote = async function(type) {
+            if (!auth.currentUser) {
+                showError("جاري الاتصال.. حاول مرة أخرى بعد لحظات");
+                return;
+            }
+            
+            const caseRef = doc(db, 'court', CASE_DOC_ID);
+            try {
+                // استخدام updateDoc مع increment لضمان دقة العد
+                await updateDoc(caseRef, {
+                    [`votes.${type}`]: increment(1)
+                });
+                
+                // تأثير بصري
+                const btn = event.currentTarget;
+                const originalColor = btn.style.borderColor;
+                btn.style.borderColor = "#FFF";
+                setTimeout(() => btn.style.borderColor = originalColor, 200);
+            } catch (err) {
+                console.error("Voting failed:", err);
+                showError("فشل التصويت: " + err.message);
+            }
+        };
+    </script>
+</body>
+</html>
