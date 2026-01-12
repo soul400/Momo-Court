@@ -26,6 +26,7 @@
                             pros: '#E53E3E',    // أحمر فاتح
                             def: '#3182CE',     // أزرق سماوي
                             jury: '#805AD5',    // بنفسجي
+                            public: '#38B2AC',  // تركواز للجمهور
                         }
                     },
                     animation: {
@@ -175,7 +176,7 @@
                 <i data-lucide="save"></i> حفظ ونشر القضية
             </button>
             <button id="reset-votes-btn" class="bg-gray-700 hover:bg-red-700 text-white px-8 rounded-xl font-bold transition">
-                تصفير التصويت
+                تصفير كافة الأصوات (محلفين وجمهور)
             </button>
         </div>
     </div>
@@ -290,6 +291,44 @@
             <!-- العمود الجانبي: التصويت -->
             <div class="lg:col-span-3 order-3">
                 <div class="sticky top-6 space-y-6">
+                    
+                    <!-- نتائج الجمهور (يظهر فقط للقاضي) -->
+                    <div id="judge-public-results" class="hidden glass-panel p-6 rounded-2xl border-2 border-momo-public shadow-2xl animate-pulse-slow">
+                        <h3 class="font-bold text-momo-public mb-4 text-center flex items-center justify-center gap-2 text-xl">
+                            <i data-lucide="bar-chart-2"></i> رأي الجمهور
+                        </h3>
+                        <div class="flex items-center justify-between text-sm mb-2">
+                            <span class="text-green-400">بريء</span>
+                            <span class="text-red-400">مدان</span>
+                        </div>
+                        <div class="h-4 bg-gray-900 rounded-full overflow-hidden flex relative border border-gray-600">
+                            <div id="pub-bar-innocent" class="bg-green-500 h-full transition-all duration-1000 flex items-center justify-center text-[10px] text-black font-bold" style="width: 50%">0</div>
+                            <div id="pub-bar-guilty" class="bg-red-500 h-full transition-all duration-1000 flex items-center justify-center text-[10px] text-white font-bold" style="width: 50%">0</div>
+                        </div>
+                        <div class="flex justify-between mt-2 text-xs text-gray-400 font-mono">
+                            <span id="pub-count-innocent">0 صوت</span>
+                            <span id="pub-count-guilty">0 صوت</span>
+                        </div>
+                    </div>
+
+                    <!-- لوحة تصويت الجمهور (يظهر للضيوف فقط) -->
+                    <div id="audience-voting-section" class="hidden glass-panel p-6 rounded-2xl border border-momo-public/30 shadow-[0_0_15px_rgba(56,178,172,0.1)]">
+                        <h3 class="font-bold text-momo-public mb-4 text-center flex items-center justify-center gap-2">
+                            <i data-lucide="thumbs-up"></i> تصويت الجمهور
+                        </h3>
+                        <p class="text-xs text-gray-400 text-center mb-4">شارك برأيك في القضية، رأيك سيصل للقاضي مباشرة!</p>
+                        <div class="grid grid-cols-2 gap-3">
+                            <button onclick="voteAudience('innocent')" class="group relative overflow-hidden bg-green-900/40 hover:bg-green-600 border border-green-600 text-green-100 py-4 rounded-lg transition-all duration-300">
+                                <span class="relative z-10 font-bold text-lg">بريء</span>
+                                <div class="absolute inset-0 bg-green-500 transform scale-x-0 group-hover:scale-x-100 transition-transform origin-left opacity-20"></div>
+                            </button>
+                            <button onclick="voteAudience('guilty')" class="group relative overflow-hidden bg-red-900/40 hover:bg-red-600 border border-red-600 text-red-100 py-4 rounded-lg transition-all duration-300">
+                                <span class="relative z-10 font-bold text-lg">مدان</span>
+                                <div class="absolute inset-0 bg-red-500 transform scale-x-0 group-hover:scale-x-100 transition-transform origin-left opacity-20"></div>
+                            </button>
+                        </div>
+                    </div>
+
                     <!-- لوحة المحلفين -->
                     <div id="jury-section" class="hidden glass-panel p-6 rounded-2xl border border-momo-jury/30 shadow-[0_0_15px_rgba(128,90,213,0.1)]">
                         <h3 class="font-bold text-momo-jury mb-4 text-center flex items-center justify-center gap-2">
@@ -307,9 +346,9 @@
                         </div>
                     </div>
 
-                    <!-- نتائج التصويت الحية -->
-                    <div class="bg-gray-800 p-6 rounded-2xl shadow-lg text-center">
-                        <p class="text-xs text-gray-500 uppercase tracking-widest mb-4">نتائج التصويت الحية</p>
+                    <!-- نتائج تصويت المحلفين الحية -->
+                    <div id="jury-stats-display" class="bg-gray-800 p-6 rounded-2xl shadow-lg text-center">
+                        <p class="text-xs text-momo-jury uppercase tracking-widest mb-4 font-bold">نتائج المحلفين</p>
                         
                         <div class="flex items-end justify-between px-2 mb-2">
                             <div class="text-center">
@@ -334,15 +373,15 @@
         </div>
     </div>
 
-    <!-- Firebase SDK Logic (تم التحديث حسب الطلب) -->
+    <!-- Firebase SDK Logic -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
         import { getAnalytics } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-analytics.js";
-        // استبدال Database بـ Firestore
-        import { getFirestore, doc, setDoc, getDoc, onSnapshot, updateDoc, increment } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+        // استيراد initializeFirestore لاستخدام إعدادات مخصصة
+        import { getFirestore, doc, setDoc, getDoc, onSnapshot, updateDoc, increment, initializeFirestore } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
         import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 
-        // إعدادات قاعدة البيانات الجديدة (judge-31fea)
+        // إعدادات قاعدة البيانات
         const firebaseConfig = {
             apiKey: "AIzaSyBipomSPVclk5J9aFVmSJvGkk2P22YRkrU",
             authDomain: "judge-31fea.firebaseapp.com",
@@ -354,11 +393,16 @@
         };
 
         const app = initializeApp(firebaseConfig);
-        const analytics = getAnalytics(app); // إضافة التحليلات
-        const db = getFirestore(app);
+        const analytics = getAnalytics(app);
+        
+        // تهيئة Firestore مع Long Polling لحل مشكلة الاتصال
+        const db = initializeFirestore(app, {
+            experimentalForceLongPolling: true,
+        });
+
         const auth = getAuth(app);
         
-        const CASE_DOC_ID = 'live-case-001'; // معرف المستند الوحيد للقضية
+        const CASE_DOC_ID = 'live-case-001';
 
         // --- إدارة الاتصال والمصادقة ---
         const connectionStatus = document.getElementById('connection-status');
@@ -371,12 +415,11 @@
             setTimeout(() => errorToast.style.display = 'none', 5000);
         }
         
-        // تسجيل الدخول
         function ensureAuth() {
             connectionStatus.style.display = 'block';
             signInAnonymously(auth)
                 .then(() => {
-                    console.log("Firestore Auth: Connected to " + firebaseConfig.projectId);
+                    console.log("Firestore Auth: Connected");
                     connectionStatus.style.display = 'none';
                 })
                 .catch((error) => {
@@ -392,7 +435,6 @@
         // --- تهيئة الواجهة ---
         lucide.createIcons();
 
-        // توليد خانات الشهود في الأدمن
         const witnessContainer = document.getElementById('witness-admin-container');
         for (let i = 1; i <= 10; i++) {
             const div = document.createElement('div');
@@ -411,12 +453,7 @@
             const codeInput = document.getElementById('access-code');
             const code = codeInput.value.trim().toUpperCase();
             
-            if(!code) {
-                codeInput.classList.add('ring-2', 'ring-red-500');
-                setTimeout(() => codeInput.classList.remove('ring-2', 'ring-red-500'), 1000);
-                return;
-            }
-
+            // السماح بالدخول حتى لو الحقل فارغ (للجمهور)
             const loginScreen = document.getElementById('login-screen');
             const adminView = document.getElementById('admin-view');
             const courtView = document.getElementById('court-view');
@@ -432,13 +469,13 @@
                 } else {
                     courtView.style.display = 'block';
                     courtView.classList.add('animate-fade-in');
-                    setupRoleView(code);
+                    setupRoleView(code); // إذا كان الكود فارغ سيعتبر ضيف
                 }
                 lucide.createIcons();
             }, 300);
         };
 
-        // --- منطق الأدمن (Firestore) ---
+        // --- منطق الأدمن ---
         
         document.getElementById('save-btn').addEventListener('click', async () => {
             if (!auth.currentUser) {
@@ -452,13 +489,11 @@
             btn.innerHTML = '<span class="animate-pulse">⏳ جاري الحفظ في السحابة...</span>';
             btn.disabled = true;
             
-            // مؤقت أمان
             const timeoutId = setTimeout(() => {
                 btn.innerHTML = '⚠️ العملية تأخرت. تحقق من الكونسول';
                 btn.disabled = false;
             }, 15000);
 
-            // جمع بيانات الشهود
             const witnessesData = [];
             for(let i=1; i<=10; i++) {
                 const name = document.getElementById(`w-name-${i}`).value;
@@ -482,7 +517,6 @@
                 evInnocence: document.getElementById('inp-ev-innocence').value,
             };
 
-            // استخدام setDoc مع merge: true لتحديث البيانات أو إنشائها
             const caseRef = doc(db, 'court', CASE_DOC_ID);
             
             try {
@@ -507,11 +541,14 @@
         });
 
         document.getElementById('reset-votes-btn').addEventListener('click', async () => {
-            if(confirm('هل أنت متأكد من تصفير عداد الأصوات؟')) {
+            if(confirm('هل أنت متأكد من تصفير كافة الأصوات (المحلفين والجمهور)؟')) {
                 const caseRef = doc(db, 'court', CASE_DOC_ID);
                 try {
-                    await setDoc(caseRef, { votes: { innocent: 0, guilty: 0 } }, { merge: true });
-                    alert("تم تصفير الأصوات.");
+                    await setDoc(caseRef, { 
+                        votes: { innocent: 0, guilty: 0 },
+                        audienceVotes: { innocent: 0, guilty: 0 } // تصفير أصوات الجمهور أيضاً
+                    }, { merge: true });
+                    alert("تم تصفير جميع الأصوات.");
                 } catch(err) {
                     showError("حدث خطأ: " + err.message);
                 }
@@ -535,7 +572,6 @@
                      document.getElementById('inp-ev-guilt').value = data.evGuilt || '';
                      document.getElementById('inp-ev-innocence').value = data.evInnocence || '';
 
-                     // تحميل الشهود
                      if(data.witnessesData && Array.isArray(data.witnessesData)) {
                          data.witnessesData.forEach((w, index) => {
                              if(index < 10) {
@@ -547,19 +583,21 @@
                  }
              } catch (err) {
                  console.error("Error loading data:", err);
-                 showError("لم يتم العثور على بيانات سابقة أو لا توجد صلاحية");
+                 showError("لم يتم العثور على بيانات سابقة");
              }
         }
 
-        // --- منطق المشاهد والأدوار (Firestore Listener) ---
+        // --- منطق المشاهد والأدوار ---
 
         function setupRoleView(code) {
             const roleBadge = document.getElementById('role-badge');
             const guiltSection = document.getElementById('section-evidence-guilt');
             const innocenceSection = document.getElementById('section-evidence-innocence');
             const jurySection = document.getElementById('jury-section');
+            const audienceVotingSection = document.getElementById('audience-voting-section');
+            const judgePublicResults = document.getElementById('judge-public-results');
             
-            let roleName = "ضيف";
+            let roleName = "ضيف (جمهور)";
             let roleClass = "bg-gray-600 text-gray-200";
 
             if (code === 'JUDGE1') {
@@ -567,6 +605,7 @@
                 roleClass = "bg-momo-judge text-black";
                 guiltSection.style.display = 'block';
                 innocenceSection.style.display = 'block';
+                judgePublicResults.style.display = 'block'; // القاضي يرى نتائج الجمهور
             } 
             else if (code === 'DEFENSE1') {
                 roleName = "الدفاع 🛡️";
@@ -581,7 +620,7 @@
             else if (code === 'JURY1') {
                 roleName = "المحلفين 👥";
                 roleClass = "bg-momo-jury text-white";
-                jurySection.style.display = 'block';
+                jurySection.style.display = 'block'; // المحلفين يصوتون هنا
                 guiltSection.style.display = 'block';
                 innocenceSection.style.display = 'block';
             }
@@ -589,11 +628,15 @@
                 roleName = "شاهد 👁️";
                 roleClass = "bg-cyan-600 text-white";
             }
+            else {
+                // للزوار / الجمهور (كود فارغ أو غير معروف)
+                audienceVotingSection.style.display = 'block';
+            }
 
             roleBadge.textContent = roleName;
             roleBadge.className = `px-3 py-1 rounded-full text-xs font-bold border border-white/20 shadow-lg ${roleClass}`;
 
-            // الاستماع للتحديثات الحية باستخدام onSnapshot
+            // الاستماع للتحديثات
             const caseRef = doc(db, 'court', CASE_DOC_ID);
             
             onSnapshot(caseRef, (docSnap) => {
@@ -611,12 +654,10 @@
                     updateText('display-ev-guilt', data.evGuilt);
                     updateText('display-ev-innocence', data.evInnocence);
 
-                    // عرض الشهود
+                    // الشهود
                     const witnessesContainer = document.getElementById('display-witnesses-container');
                     
                     if (data.witnessesData && Array.isArray(data.witnessesData) && data.witnessesData.length > 0) {
-                        // إعادة الرسم فقط إذا تغير عدد الشهود أو المحتوى بشكل جذري
-                        // للتبسيط نعيد الرسم دائماً هنا
                         witnessesContainer.innerHTML = '';
                         data.witnessesData.forEach(w => {
                             const wDiv = document.createElement('div');
@@ -639,7 +680,7 @@
                         witnessesContainer.innerHTML = '<p class="text-gray-500 text-center py-4">لم يتم استدعاء شهود لهذه الجلسة.</p>';
                     }
 
-                    // تحديث الأصوات
+                    // تحديث أصوات المحلفين (Jury)
                     const iVotes = data.votes?.innocent || 0;
                     const gVotes = data.votes?.guilty || 0;
                     const total = iVotes + gVotes;
@@ -656,10 +697,34 @@
                         document.getElementById('bar-innocent').style.width = `50%`;
                         document.getElementById('bar-guilty').style.width = `50%`;
                     }
+
+                    // تحديث أصوات الجمهور (Public) - تظهر فقط للقاضي
+                    const pIVotes = data.audienceVotes?.innocent || 0;
+                    const pGVotes = data.audienceVotes?.guilty || 0;
+                    const pTotal = pIVotes + pGVotes;
+
+                    document.getElementById('pub-count-innocent').innerText = pIVotes + " صوت";
+                    document.getElementById('pub-count-guilty').innerText = pGVotes + " صوت";
+                    
+                    const pBarInnocent = document.getElementById('pub-bar-innocent');
+                    const pBarGuilty = document.getElementById('pub-bar-guilty');
+
+                    if (pTotal > 0) {
+                        const piPercent = (pIVotes / pTotal) * 100;
+                        const pgPercent = (pGVotes / pTotal) * 100;
+                        pBarInnocent.style.width = `${piPercent}%`;
+                        pBarInnocent.innerText = Math.round(piPercent) + "%";
+                        pBarGuilty.style.width = `${pgPercent}%`;
+                        pBarGuilty.innerText = Math.round(pgPercent) + "%";
+                    } else {
+                        pBarInnocent.style.width = `50%`;
+                        pBarInnocent.innerText = "0";
+                        pBarGuilty.style.width = `50%`;
+                        pBarGuilty.innerText = "0";
+                    }
                 }
             }, (error) => {
                 console.error("Listen Error:", error);
-                // لا نظهر الخطأ للمستخدم العادي بشكل مزعج، فقط في الكونسول
             });
         }
 
@@ -672,29 +737,38 @@
             }
         }
 
+        // تصويت المحلفين
         window.vote = async function(type) {
-            if (!auth.currentUser) {
-                showError("جاري الاتصال.. حاول مرة أخرى بعد لحظات");
-                return;
-            }
-            
+            if (!auth.currentUser) return showError("جاري الاتصال..");
             const caseRef = doc(db, 'court', CASE_DOC_ID);
             try {
-                // استخدام updateDoc مع increment لضمان دقة العد
-                await updateDoc(caseRef, {
-                    [`votes.${type}`]: increment(1)
-                });
-                
-                // تأثير بصري
-                const btn = event.currentTarget;
-                const originalColor = btn.style.borderColor;
-                btn.style.borderColor = "#FFF";
-                setTimeout(() => btn.style.borderColor = originalColor, 200);
-            } catch (err) {
-                console.error("Voting failed:", err);
-                showError("فشل التصويت: " + err.message);
-            }
+                await updateDoc(caseRef, { [`votes.${type}`]: increment(1) });
+                animateButton(event.currentTarget);
+            } catch (err) { showError("فشل التصويت: " + err.message); }
         };
+
+        // تصويت الجمهور (جديد)
+        window.voteAudience = async function(type) {
+            if (!auth.currentUser) return showError("جاري الاتصال..");
+            const caseRef = doc(db, 'court', CASE_DOC_ID);
+            try {
+                await updateDoc(caseRef, { [`audienceVotes.${type}`]: increment(1) });
+                const btn = event.currentTarget;
+                animateButton(btn);
+                
+                // إضافة تغذية راجعة بسيطة
+                const originalText = btn.innerHTML;
+                btn.innerText = "تم الإرسال!";
+                setTimeout(() => btn.innerHTML = originalText, 1000);
+                
+            } catch (err) { showError("فشل التصويت: " + err.message); }
+        };
+
+        function animateButton(btn) {
+            const originalColor = btn.style.borderColor;
+            btn.style.borderColor = "#FFF";
+            setTimeout(() => btn.style.borderColor = originalColor, 200);
+        }
     </script>
 </body>
 </html>
